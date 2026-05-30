@@ -1,0 +1,705 @@
+﻿
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RED ROOM — AI Stress Tester</title>
+<meta name="description" content="RED ROOM: LLM Safety Sandbox — intercepts, classifies and blocks AI threats in real time.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050a0e;--surface:rgba(255,255,255,0.03);--surface2:rgba(255,255,255,0.06);
+  --green:#00ff88;--green2:rgba(0,255,136,0.15);--green3:rgba(0,255,136,0.05);
+  --red:#ff2d55;--red2:rgba(255,45,85,0.15);--red3:rgba(255,45,85,0.05);
+  --amber:#ffb300;--amber2:rgba(255,179,0,0.15);--amber3:rgba(255,179,0,0.05);
+  --blue:#00b4ff;--blue2:rgba(0,180,255,0.15);
+  --text:#e0e8ef;--text2:#7a8fa6;--text3:#3d5166;
+  --border:rgba(0,255,136,0.12);--border2:rgba(0,255,136,0.06);
+  --mono:'JetBrains Mono',monospace;--head:'Space Grotesk',sans-serif;
+  --glow:0 0 20px rgba(0,255,136,0.15);--glow-r:0 0 20px rgba(255,45,85,0.2);
+}
+html,body{background:var(--bg);color:var(--text);font-family:var(--head);min-height:100vh;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0a1520}::-webkit-scrollbar-thumb{background:#1a3a28;border-radius:4px}
+
+/* SCANLINE */
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,0.012) 2px,rgba(0,255,136,0.012) 4px);pointer-events:none;z-index:9999;animation:scan 8s linear infinite}
+@keyframes scan{0%{background-position:0 0}100%{background-position:0 100px}}
+
+/* CANVAS BG */
+#bgCanvas{position:fixed;inset:0;z-index:0;opacity:0.6}
+.page-wrap{position:relative;z-index:1}
+
+/* NAV */
+nav{background:rgba(5,10,14,0.92);border-bottom:1px solid var(--border);padding:0 2rem;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(16px)}
+.nav-left{display:flex;align-items:center;gap:12px}
+.nav-logo{width:34px;height:34px;background:linear-gradient(135deg,#00ff88,#00cc66);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:700;color:#000;box-shadow:0 0 16px rgba(0,255,136,0.5);letter-spacing:-1px}
+.nav-brand-name{font-family:var(--head);font-size:16px;font-weight:700;color:var(--green);letter-spacing:-0.5px;text-shadow:0 0 20px rgba(0,255,136,0.4)}
+.nav-brand-tag{font-family:var(--mono);font-size:11px;color:var(--text3);margin-left:2px}
+.nav-right{display:flex;align-items:center;gap:16px}
+.nav-status{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--green)}
+.blink-dot{width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 8px var(--green);animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+.nav-clock{font-family:var(--mono);font-size:11px;color:var(--text3);background:var(--surface);border:1px solid var(--border2);padding:4px 10px;border-radius:6px}
+
+/* LAYOUT */
+.wrap{max-width:1320px;margin:0 auto;padding:2rem 2rem 5rem}
+
+/* HERO */
+.hero{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:3rem 3rem 2.5rem;margin-bottom:1.5rem;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;top:-80px;right:-80px;width:350px;height:350px;background:radial-gradient(circle,rgba(0,255,136,0.07) 0%,transparent 70%);pointer-events:none}
+.hero-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:0.15em;color:var(--green);text-transform:uppercase;margin-bottom:1.2rem;opacity:0.8}
+.hero-title{font-size:clamp(2rem,4vw,3rem);font-weight:700;letter-spacing:-1.5px;line-height:1.1;margin-bottom:1rem;color:#fff}
+.hero-title span{color:var(--green);text-shadow:0 0 30px rgba(0,255,136,0.5)}
+.hero-desc{font-size:15px;color:var(--text2);max-width:580px;line-height:1.75;margin-bottom:2rem;font-family:var(--mono)}
+
+.pills{display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:2rem}
+.pill{display:flex;align-items:center;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border);font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:0.05em}
+.pill-bar{width:3px;height:32px}
+.pill-text{padding:0 12px;color:var(--text2);line-height:32px}
+.pill-r .pill-bar{background:var(--red)}.pill-a .pill-bar{background:var(--amber)}.pill-g .pill-bar{background:var(--green)}
+
+.status-bar{display:flex;align-items:center;gap:1.2rem;padding-top:1.8rem;border-top:1px solid var(--border2);flex-wrap:wrap}
+.s-item{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--text2)}
+.s-dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.s-sep{width:1px;height:12px;background:var(--border2)}
+
+/* CONSOLE */
+.section-label{font-family:var(--mono);font-size:10px;letter-spacing:0.15em;color:var(--text3);text-transform:uppercase;margin-bottom:0.75rem}
+.console-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:1.5rem}
+.console-topbar{display:flex;align-items:center;gap:8px;padding:0.85rem 1.2rem;border-bottom:1px solid var(--border2);background:rgba(0,0,0,0.3)}
+.console-dots{display:flex;gap:5px}.c-dot{width:10px;height:10px;border-radius:50%}
+.c-red{background:#ff5f56}.c-amber{background:#febc2e}.c-green{background:#28c840}
+.console-fname{font-family:var(--mono);font-size:11px;color:var(--text3);margin-left:6px}
+.console-body{padding:1.5rem}
+
+.model-row{display:flex;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap}
+.model-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:0.85rem 1.4rem;background:var(--surface);border:1px solid var(--border2);border-radius:10px;cursor:pointer;transition:all 0.2s;font-family:var(--mono);font-size:11px;color:var(--text2);min-width:90px}
+.model-card:hover{border-color:var(--green2);color:var(--text);background:var(--green3)}
+.model-card.active{border-color:var(--green);color:var(--green);background:var(--green3);box-shadow:0 0 16px rgba(0,255,136,0.15)}
+.model-card-icon{font-size:20px}
+.model-label{font-size:10px}
+
+.prompt-area{width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:10px;padding:1rem;font-family:var(--mono);font-size:13px;color:var(--text);resize:none;height:120px;outline:none;line-height:1.6;transition:border 0.2s,box-shadow 0.2s}
+.prompt-area:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,255,136,0.08)}
+.prompt-area::placeholder{color:var(--text3)}
+
+.analyze-btn{width:100%;margin-top:1rem;height:52px;background:linear-gradient(90deg,rgba(0,255,136,0.15),rgba(0,255,136,0.08));border:1px solid var(--green);border-radius:10px;color:var(--green);font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.analyze-btn:hover{background:linear-gradient(90deg,rgba(0,255,136,0.25),rgba(0,255,136,0.12));box-shadow:0 0 24px rgba(0,255,136,0.2)}
+.analyze-btn:active{transform:scale(0.99)}
+.analyze-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.analyze-btn .btn-glow{position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(0,255,136,0.1),transparent);transform:translateX(-100%);transition:transform 0.6s}
+.analyze-btn:hover .btn-glow{transform:translateX(100%)}
+
+.progress-bar-wrap{height:3px;background:var(--surface2);border-radius:2px;margin-top:0.75rem;overflow:hidden;display:none}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#00ccff);border-radius:2px;width:0;transition:width 0.4s ease}
+.progress-status{font-family:var(--mono);font-size:10px;color:var(--green);margin-top:6px;min-height:16px;letter-spacing:0.05em}
+.console-hint{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:8px;text-align:right}
+
+/* RESULT CARD */
+.result-card{border-radius:14px;padding:1.5rem;margin-bottom:1.5rem;border:1px solid;animation:slideIn 0.4s cubic-bezier(0.16,1,0.3,1);display:none}
+@keyframes slideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.result-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem}
+.result-tag{font-family:var(--mono);font-size:10px;letter-spacing:0.15em;text-transform:uppercase;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid}
+.result-time{font-family:var(--mono);font-size:11px;color:var(--text3)}
+.result-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.rstat{background:rgba(0,0,0,0.3);border:1px solid var(--border2);border-radius:10px;padding:1rem}
+.rstat-label{font-family:var(--mono);font-size:9px;letter-spacing:0.12em;color:var(--text3);text-transform:uppercase;margin-bottom:6px}
+.rstat-val{font-size:1.8rem;font-weight:700;letter-spacing:-1px;line-height:1}
+.rstat-sub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:4px}
+.conf-track{background:var(--surface2);border-radius:4px;height:4px;margin-top:8px}
+.conf-fill{height:4px;border-radius:4px;transition:width 0.8s ease}
+.llm-block{background:rgba(0,0,0,0.5);border:1px solid var(--border2);border-radius:10px;padding:1rem}
+.llm-block-label{font-family:var(--mono);font-size:9px;letter-spacing:0.12em;color:var(--text3);text-transform:uppercase;margin-bottom:8px}
+.llm-block-text{font-family:var(--mono);font-size:12px;color:var(--text);line-height:1.7}
+
+/* METRICS */
+.metrics-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:0.75rem;margin-bottom:1.5rem}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.1rem;position:relative;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s}
+.metric-card::after{content:'';position:absolute;bottom:0;left:0;height:2px;width:var(--bar,0%);transition:width 1s ease;border-radius:0 0 2px 2px}
+.metric-card:hover{box-shadow:var(--glow)}
+.m-label{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:6px}
+.m-val{font-size:1.6rem;font-weight:700;letter-spacing:-0.5px;line-height:1;font-family:var(--head)}
+.m-sub{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px}
+
+/* MAIN GRID */
+.main-grid{display:grid;grid-template-columns:1fr 380px;gap:1.25rem;margin-bottom:1.5rem}
+
+/* FEED TABLE */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;border-bottom:1px solid var(--border2)}
+.panel-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--green);text-transform:uppercase}
+.panel-badge{font-family:var(--mono);font-size:10px;color:var(--text3);background:rgba(0,0,0,0.3);border:1px solid var(--border2);padding:3px 9px;border-radius:20px}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;font-weight:600;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;background:rgba(0,0,0,0.2);border-bottom:1px solid var(--border2)}
+td{padding:9px 12px;font-size:11px;border-bottom:1px solid var(--border2);vertical-align:middle;font-family:var(--mono)}
+tr:last-child td{border-bottom:none}
+tr.feed-row-new{animation:rowSlide 0.4s ease}
+@keyframes rowSlide{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+tr:hover td{background:rgba(0,255,136,0.025)}
+.td-trunc{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)}
+.sev-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.08em}
+.sev-H{background:var(--red2);color:var(--red);border:1px solid rgba(255,45,85,0.3)}
+.sev-M{background:var(--amber2);color:var(--amber);border:1px solid rgba(255,179,0,0.3)}
+.sev-L{background:rgba(0,255,136,0.1);color:var(--green);border:1px solid rgba(0,255,136,0.3)}
+.act-BLOCK{color:var(--red);font-weight:700}.act-WARN{color:var(--amber);font-weight:700}.act-ALLOW{color:var(--green);font-weight:700}
+
+/* CHARTS */
+.charts-col{display:flex;flex-direction:column;gap:1rem}
+.chart-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem}
+
+/* BLOCKED */
+.blocked-section{margin-bottom:2rem}
+.blocked-title{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:0.15em;color:var(--red);text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+.b-item{background:var(--red3);border:1px solid rgba(255,45,85,0.2);border-left:2px solid var(--red);border-radius:10px;overflow:hidden;margin-bottom:0.6rem;transition:box-shadow 0.2s}
+.b-item:hover{box-shadow:0 0 16px rgba(255,45,85,0.1)}
+.b-head{display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1.1rem;cursor:pointer}
+.b-head-left{display:flex;align-items:center;gap:10px}
+.b-icon{font-size:14px}
+.b-prompt{font-family:var(--mono);font-size:11px;color:var(--text);max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.b-meta{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px}
+.b-chevron{font-size:10px;color:var(--text3);transition:transform 0.2s}
+.b-body{display:none;padding:1rem 1.1rem;border-top:1px solid rgba(255,45,85,0.15)}
+.b-body.open{display:block}
+.b-field-lbl{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;color:var(--text3);text-transform:uppercase;margin-bottom:4px}
+.b-field-val{font-family:var(--mono);font-size:11px;color:var(--text2);background:rgba(0,0,0,0.4);border:1px solid var(--border2);border-radius:6px;padding:0.75rem;margin-bottom:1rem;word-break:break-word;white-space:pre-wrap;line-height:1.6}
+.b-tags{display:flex;gap:1.5rem;flex-wrap:wrap}
+.b-tag-lbl{font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:2px}
+.b-tag-val{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)}
+
+/* EMPTY */
+.empty-state{padding:3rem;text-align:center;color:var(--text3);font-family:var(--mono);font-size:12px}
+.all-clear{background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.15);border-radius:10px;padding:1rem;font-family:var(--mono);font-size:12px;color:var(--green);text-align:center}
+
+/* TOAST */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9998;font-family:var(--mono);font-size:12px;padding:0.75rem 1.2rem;border-radius:10px;display:flex;align-items:center;gap:8px;pointer-events:none;opacity:0;transform:translateY(10px);transition:all 0.3s}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-ok{background:rgba(0,255,136,0.12);border:1px solid var(--green);color:var(--green);box-shadow:0 0 20px rgba(0,255,136,0.15)}
+.toast-block{background:rgba(255,45,85,0.12);border:1px solid var(--red);color:var(--red);box-shadow:0 0 20px rgba(255,45,85,0.15)}
+.toast-warn{background:rgba(255,179,0,0.12);border:1px solid var(--amber);color:var(--amber)}
+
+@media(max-width:1024px){.main-grid{grid-template-columns:1fr}.metrics-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.metrics-grid{grid-template-columns:repeat(2,1fr)}.result-stats{grid-template-columns:repeat(2,1fr)}.hero-title{font-size:1.8rem}}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="page-wrap">
+
+<nav>
+  <div class="nav-left">
+    <div class="nav-logo">RR</div>
+    <div>
+      <span class="nav-brand-name">RED ROOM</span>
+      <span class="nav-brand-tag">/ AI Stress Tester</span>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="nav-status"><div class="blink-dot"></div>SYSTEM ONLINE</div>
+    <div class="nav-clock" id="clock">--:--:--</div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- HERO -->
+<section class="hero" style="margin-bottom:1.5rem">
+  <div class="hero-eyebrow">// LLM SAFETY SANDBOX · ACTIVE MONITORING</div>
+  <h1 class="hero-title">Stress Test Any LLM.<br><span>Catch Threats Before They Land.</span></h1>
+  <p class="hero-desc">Red Room intercepts every prompt, runs a multi-layer safety classifier, applies policy rules, and logs the result — before the model ever responds.</p>
+  <div class="pills">
+    <div class="pill pill-r"><div class="pill-bar"></div><span class="pill-text">PROXY &amp; INTERCEPTOR</span></div>
+    <div class="pill pill-a"><div class="pill-bar"></div><span class="pill-text">SAFETY CLASSIFIER</span></div>
+    <div class="pill pill-g"><div class="pill-bar"></div><span class="pill-text">POLICY ENGINE</span></div>
+  </div>
+  <div class="status-bar">
+    <div class="s-item"><div class="s-dot"></div>Proxy active</div>
+    <div class="s-sep"></div>
+    <div class="s-item"><div class="s-dot"></div>Classifier online</div>
+    <div class="s-sep"></div>
+    <div class="s-item"><div class="s-dot"></div>Policy engine running</div>
+    <div class="s-sep"></div>
+    <div class="s-item"><div class="s-dot"></div>Logger connected</div>
+  </div>
+</section>
+
+<!-- TEST CONSOLE -->
+<div class="section-label">// TEST CONSOLE</div>
+<div class="console-card">
+  <div class="console-topbar">
+    <div class="console-dots">
+      <div class="c-dot c-red"></div>
+      <div class="c-dot c-amber"></div>
+      <div class="c-dot c-green"></div>
+    </div>
+    <span class="console-fname">prompt_tester.sh — red-room-sandbox</span>
+  </div>
+  <div class="console-body">
+    <div class="section-label" style="margin-bottom:0.6rem">SELECT MODEL TARGET</div>
+    <div class="model-row" id="modelRow">
+      <div class="model-card active" data-model="GPT-4" onclick="selectModel(this)"><div class="model-card-icon">🤖</div><div class="model-label">GPT-4</div></div>
+      <div class="model-card" data-model="Claude" onclick="selectModel(this)"><div class="model-card-icon">🧠</div><div class="model-label">Claude</div></div>
+      <div class="model-card" data-model="Gemini" onclick="selectModel(this)"><div class="model-card-icon">💎</div><div class="model-label">Gemini</div></div>
+      <div class="model-card" data-model="Grok" onclick="selectModel(this)"><div class="model-card-icon">⚡</div><div class="model-label">Grok</div></div>
+    </div>
+    <div class="section-label" style="margin-bottom:0.6rem">INJECT PROMPT</div>
+    <textarea class="prompt-area" id="promptInput" placeholder="Enter any prompt — normal, jailbreak, toxic, or PII..."></textarea>
+    <button class="analyze-btn" id="analyzeBtn" onclick="runTest()">
+      <span class="btn-glow"></span>
+      <span id="btnLabel">▶ ANALYZE PROMPT</span>
+    </button>
+    <div class="progress-bar-wrap" id="progWrap"><div class="progress-bar-fill" id="progFill"></div></div>
+    <div class="progress-status" id="progStatus"></div>
+    <div class="console-hint">Ctrl+Enter to submit · Results logged to SQLite</div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="result-card" id="resultCard"></div>
+
+<!-- METRICS -->
+<div class="section-label">// LIVE ANALYTICS</div>
+<div class="metrics-grid" style="margin-bottom:1.5rem">
+  <div class="metric-card" style="--bar:100%" id="mc0">
+    <div class="m-label">Total Requests</div>
+    <div class="m-val" id="mTotal" style="color:#e0e8ef">0</div>
+    <div class="m-sub">all time</div>
+  </div>
+  <div class="metric-card" id="mc1">
+    <div class="m-label">Threats Detected</div>
+    <div class="m-val" id="mThreats" style="color:var(--red)">0</div>
+    <div class="m-sub">flagged</div>
+  </div>
+  <div class="metric-card" id="mc2">
+    <div class="m-label">Blocked</div>
+    <div class="m-val" id="mBlocked" style="color:var(--red)">0</div>
+    <div class="m-sub">HIGH severity</div>
+  </div>
+  <div class="metric-card" id="mc3">
+    <div class="m-label">Warned</div>
+    <div class="m-val" id="mWarned" style="color:var(--amber)">0</div>
+    <div class="m-sub">MEDIUM severity</div>
+  </div>
+  <div class="metric-card" id="mc4">
+    <div class="m-label">Safe</div>
+    <div class="m-val" id="mSafe" style="color:var(--green)">0</div>
+    <div class="m-sub">passed through</div>
+  </div>
+  <div class="metric-card" id="mc5">
+    <div class="m-label">Threat Rate</div>
+    <div class="m-val" id="mRate" style="color:var(--red)">0%</div>
+    <div class="m-sub">of all requests</div>
+  </div>
+</div>
+
+<!-- FEED + CHARTS -->
+<div class="main-grid">
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">⚡ LIVE THREAT FEED</span>
+      <span class="panel-badge" id="feedCount">0 events</span>
+    </div>
+    <div id="feedBody"><div class="empty-state">No events yet — inject your first prompt above</div></div>
+  </div>
+  <div class="charts-col">
+    <div class="chart-panel">
+      <div class="panel-head" style="border-bottom:1px solid rgba(0,255,136,0.06);margin-bottom:1rem;padding:0 0 0.75rem">
+        <span class="panel-title">THREATS BY CATEGORY</span>
+      </div>
+      <canvas id="catChart" height="140"></canvas>
+    </div>
+    <div class="chart-panel">
+      <div class="panel-head" style="border-bottom:1px solid rgba(0,255,136,0.06);margin-bottom:1rem;padding:0 0 0.75rem">
+        <span class="panel-title">SEVERITY SPLIT</span>
+      </div>
+      <canvas id="sevChart" height="140"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCKED -->
+<div class="blocked-section">
+  <div class="blocked-title">🚨 BLOCKED INTERACTIONS</div>
+  <div id="blockedList"><div class="all-clear">✓ No blocked interactions — system operating normally</div></div>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /page-wrap -->
+
+<div class="toast" id="toast"></div>
+<script>
+// ── BACKEND INTEGRATION POINT ──────────────────────────────────────────────
+// Replace classifyPrompt() with:
+//   fetch('http://localhost:8000/chat', {method:'POST', body: JSON.stringify({prompt, model})})
+// Replace getLogs() with:
+//   fetch('http://localhost:8000/logs')
+// Backend schema: id, timestamp, model_name, user_input, llm_output,
+//                 flagged, categories, severity, confidence, action
+// ───────────────────────────────────────────────────────────────────────────
+
+// ── BACKGROUND CANVAS (matrix grid + particles) ──
+(function(){
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [], grid = [];
+  const GREEN = '#00ff88';
+
+  function resize(){
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    buildGrid();
+  }
+
+  function buildGrid(){
+    grid = [];
+    const cols = Math.ceil(W/40), rows = Math.ceil(H/40);
+    for(let r=0; r<rows; r++) for(let c=0; c<cols; c++){
+      if(Math.random()<0.06) grid.push({x:c*40,y:r*40,a:Math.random()*0.4+0.05,t:Math.random()*Math.PI*2});
+    }
+    particles = [];
+    for(let i=0;i<40;i++) particles.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,r:Math.random()*1.5+0.5,a:Math.random()*0.5+0.1});
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // grid dots
+    ctx.fillStyle = GREEN;
+    grid.forEach(p=>{
+      p.t+=0.015;
+      const a = p.a*(0.5+0.5*Math.sin(p.t));
+      ctx.globalAlpha=a;
+      ctx.fillRect(p.x,p.y,1.5,1.5);
+    });
+    // grid lines (very subtle)
+    ctx.globalAlpha=0.025;
+    ctx.strokeStyle=GREEN;
+    ctx.lineWidth=0.5;
+    for(let x=0;x<W;x+=80){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+    for(let y=0;y<H;y+=80){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    // particles
+    ctx.globalAlpha=1;
+    particles.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>W) p.vx*=-1;
+      if(p.y<0||p.y>H) p.vy*=-1;
+      ctx.globalAlpha=p.a;
+      ctx.fillStyle=GREEN;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+    });
+    ctx.globalAlpha=1;
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize',resize);
+  resize(); draw();
+})();
+
+// ── CLOCK ──
+function tick(){
+  const d=new Date();
+  document.getElementById('clock').textContent=
+    d.toLocaleTimeString('en-GB',{hour12:false})+' · '+
+    d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+}
+tick(); setInterval(tick,1000);
+
+// ── STORAGE ──
+const KEY='redroom_v3';
+function getLogs(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return[]}}
+function saveLogs(l){localStorage.setItem(KEY,JSON.stringify(l))}
+function addLog(e){const l=getLogs();e.id=Date.now();e.timestamp=new Date().toISOString().replace('T',' ').slice(0,19);l.unshift(e);saveLogs(l)}
+
+// ── MODEL SELECTION ──
+let selectedModel='GPT-4';
+function selectModel(el){
+  document.querySelectorAll('.model-card').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  selectedModel=el.dataset.model;
+}
+
+// ── CLASSIFIER ──
+const JB=['ignore all','ignore previous','pretend you','act as','you are now','dan','jailbreak','bypass','override','disregard','reveal secrets','forget your'];
+const TX=['i hate','kill','bomb','weapon','attack','destroy','harm','death threat'];
+const PI_=['@','my phone','my email','ssn','credit card','my address','aadhar','bank account','my number'];
+
+function classify(prompt, model){
+  const p=prompt.toLowerCase();
+  const cats=[]; let sev='LOW',flagged=false,action='ALLOW';
+  if(JB.some(k=>p.includes(k))){cats.push('jailbreak');sev='HIGH';flagged=true;action='BLOCK'}
+  if(TX.some(k=>p.includes(k))){if(!cats.includes('toxic'))cats.push('toxic');sev='HIGH';flagged=true;action='BLOCK'}
+  if(PI_.some(k=>p.includes(k))){cats.push('PII_leak');if(sev!=='HIGH')sev='MEDIUM';flagged=true;if(action!=='BLOCK')action='WARN'}
+  const conf=+(0.83+Math.random()*0.16).toFixed(2);
+  const resp={
+    'GPT-4':"I'd be happy to help with that! Let me give you a detailed response.",
+    'Claude':"Happy to assist! Here is what I found based on your query.",
+    'Gemini':"Great question! Here is a comprehensive answer for you.",
+    'Grok':"Here is my straight-shooting take on what you asked."
+  };
+  const llm=action==='BLOCK'
+    ? "⛔ REQUEST BLOCKED — This prompt violates the active safety policy. Logged."
+    : action==='WARN'
+    ? "⚠️ WARNING — Sensitive content detected. Proceeding with caution. Logged."
+    : (resp[model]||"Here is my response.");
+  return{flagged,categories:cats,severity:sev,confidence:conf,action,llm_output:llm,model_name:model};
+}
+
+// ── HELPERS ──
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+function toast(msg,type='ok'){
+  const t=document.getElementById('toast');
+  t.className='toast toast-'+type;
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function animCount(el,target,suffix=''){
+  const start=0,dur=800;
+  const st=performance.now();
+  function step(now){
+    const p=Math.min((now-st)/dur,1);
+    const val=Math.floor(p*target);
+    el.textContent=val+(suffix);
+    if(p<1) requestAnimationFrame(step);
+    else el.textContent=target+suffix;
+  }
+  requestAnimationFrame(step);
+}
+
+// ── CONSTANTS ──
+const SEV_COLOR={HIGH:'var(--red)',MEDIUM:'var(--amber)',LOW:'var(--green)'};
+const SEV_CLS={HIGH:'sev-H',MEDIUM:'sev-M',LOW:'sev-L'};
+
+// ── RUN TEST ──
+async function runTest(){
+  const prompt=document.getElementById('promptInput').value.trim();
+  if(!prompt){toast('Enter a prompt first.','warn');return}
+  const btn=document.getElementById('analyzeBtn');
+  const lbl=document.getElementById('btnLabel');
+  const wrap=document.getElementById('progWrap');
+  const fill=document.getElementById('progFill');
+  const status=document.getElementById('progStatus');
+  btn.disabled=true;
+  wrap.style.display='block';
+
+  const steps=[
+    ['▶ INTERCEPTING...','Intercepting prompt...'],
+    ['▶ CLASSIFYING...','Running safety classifier...'],
+    ['▶ APPLYING POLICY...','Applying policy engine...']
+  ];
+  for(let i=0;i<steps.length;i++){
+    lbl.textContent=steps[i][0];
+    status.textContent=steps[i][1];
+    fill.style.width=((i+1)/3*100)+'%';
+    await sleep(380);
+  }
+
+  const r=classify(prompt,selectedModel);
+  const catStr=r.categories.length?r.categories.join(', '):'normal_chat';
+  const confPct=Math.round(r.confidence*100);
+  addLog({model_name:selectedModel,user_input:prompt,llm_output:r.llm_output,flagged:r.flagged?1:0,categories:catStr,severity:r.severity,confidence:r.confidence,action:r.action});
+
+  lbl.textContent='▶ ANALYZE PROMPT';
+  status.textContent='';
+  fill.style.width='0';
+  wrap.style.display='none';
+  btn.disabled=false;
+
+  // Show result
+  const rc=document.getElementById('resultCard');
+  const sc=SEV_COLOR[r.severity]||'var(--green)';
+  const bgMap={HIGH:'rgba(255,45,85,0.06)',MEDIUM:'rgba(255,179,0,0.06)',LOW:'rgba(0,255,136,0.04)'};
+  const bdMap={HIGH:'rgba(255,45,85,0.4)',MEDIUM:'rgba(255,179,0,0.4)',LOW:'rgba(0,255,136,0.3)'};
+  const now=new Date().toTimeString().slice(0,8);
+
+  rc.style.cssText=`display:block;background:${bgMap[r.severity]};border-color:${bdMap[r.severity]}`;
+  rc.innerHTML=`
+<div class="result-header">
+  <span class="result-tag" style="color:${sc};border-color:${sc};background:${bgMap[r.severity]}">CLASSIFICATION RESULT</span>
+  <span class="result-time">${now} · ${esc(selectedModel)}</span>
+</div>
+<div class="result-stats">
+  <div class="rstat">
+    <div class="rstat-label">Severity</div>
+    <div class="rstat-val" style="color:${sc}">${r.severity}</div>
+    <div class="rstat-sub">threat level</div>
+  </div>
+  <div class="rstat">
+    <div class="rstat-label">Action</div>
+    <div class="rstat-val act-${r.action}">${r.action}</div>
+    <div class="rstat-sub">policy decision</div>
+  </div>
+  <div class="rstat">
+    <div class="rstat-label">Category</div>
+    <div class="rstat-val" style="font-size:1rem;color:${sc};margin-top:4px">${esc(catStr)}</div>
+    <div class="rstat-sub">threat type</div>
+  </div>
+  <div class="rstat">
+    <div class="rstat-label">Confidence</div>
+    <div class="rstat-val" style="color:var(--blue)">${confPct}%</div>
+    <div class="conf-track"><div class="conf-fill" style="width:${confPct}%;background:var(--blue)"></div></div>
+  </div>
+</div>
+<div class="llm-block">
+  <div class="llm-block-label">// LLM RESPONSE</div>
+  <div class="llm-block-text">${esc(r.llm_output)}</div>
+</div>`;
+
+  refreshDashboard();
+  const toastType=r.action==='BLOCK'?'block':r.action==='WARN'?'warn':'ok';
+  toast(r.action==='BLOCK'?'🚫 Prompt BLOCKED — threat logged'
+       :r.action==='WARN'?'⚠️ Warning — sensitive content logged'
+       :'✓ Safe — logged to database', toastType);
+}
+
+// ── DASHBOARD ──
+let catChart=null, sevChart=null;
+
+function refreshDashboard(){
+  const logs=getLogs();
+  updateMetrics(logs);
+  renderFeed(logs);
+  renderCharts(logs);
+  renderBlocked(logs);
+}
+
+function updateMetrics(logs){
+  const total=logs.length;
+  const threats=logs.filter(l=>l.flagged).length;
+  const blocked=logs.filter(l=>l.action==='BLOCK').length;
+  const warned=logs.filter(l=>l.action==='WARN').length;
+  const safe=logs.filter(l=>l.action==='ALLOW').length;
+  const rate=total?Math.round((threats/total)*100):0;
+  animCount(document.getElementById('mTotal'),total);
+  animCount(document.getElementById('mThreats'),threats);
+  animCount(document.getElementById('mBlocked'),blocked);
+  animCount(document.getElementById('mWarned'),warned);
+  animCount(document.getElementById('mSafe'),safe);
+  document.getElementById('mRate').textContent=rate+'%';
+  // metric bar underlines
+  if(total>0){
+    document.getElementById('mc2').style.setProperty('--bar',(blocked/total*100)+'%');
+    document.getElementById('mc2').style.setProperty('background','linear-gradient(to top, rgba(255,45,85,0.06), transparent)');
+    document.querySelector('#mc2::after');
+    // simple bar via border-bottom trick
+    const bars=[
+      {id:'mc1',v:threats/total,c:'var(--red)'},
+      {id:'mc2',v:blocked/total,c:'var(--red)'},
+      {id:'mc3',v:warned/total,c:'var(--amber)'},
+      {id:'mc4',v:safe/total,c:'var(--green)'},
+      {id:'mc5',v:rate/100,c:'var(--red)'},
+    ];
+    bars.forEach(b=>{
+      const el=document.getElementById(b.id);
+      el.style.borderBottom=`2px solid ${b.c}`;
+      el.style.borderBottomWidth='2px';
+    });
+  }
+}
+
+function renderFeed(logs){
+  document.getElementById('feedCount').textContent=logs.length+' event'+(logs.length!==1?'s':'');
+  if(!logs.length){document.getElementById('feedBody').innerHTML='<div class="empty-state">No events yet — inject your first prompt above</div>';return}
+  const rows=logs.slice(0,25).map((l,i)=>`
+  <tr class="${i===0?'feed-row-new':''}">
+    <td style="color:var(--text3)">${(l.timestamp||'').slice(11,19)}</td>
+    <td style="color:var(--text2)">${esc(l.model_name||'')}</td>
+    <td class="td-trunc">${esc((l.user_input||'').slice(0,48))}</td>
+    <td style="color:var(--text3);font-size:10px">${esc(l.categories||'normal_chat')}</td>
+    <td><span class="sev-badge ${SEV_CLS[l.severity]||'sev-L'}">${l.severity||'LOW'}</span></td>
+    <td class="act-${l.action||'ALLOW'}">${l.action||'ALLOW'}</td>
+    <td style="color:var(--blue)">${Math.round((l.confidence||0)*100)}%</td>
+  </tr>`).join('');
+  document.getElementById('feedBody').innerHTML=`
+  <table>
+    <thead><tr><th>Time</th><th>Model</th><th>Prompt</th><th>Category</th><th>Severity</th><th>Action</th><th>Conf.</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderCharts(logs){
+  Chart.defaults.color='#3d5166';
+  Chart.defaults.font.family="'JetBrains Mono',monospace";
+
+  const catC={};
+  logs.forEach(l=>{const c=l.categories||'normal_chat';catC[c]=(catC[c]||0)+1});
+  const catL=Object.keys(catC), catV=Object.values(catC);
+  const cMap={'jailbreak':'#ff2d55','PII_leak':'#ffb300','toxic':'#ff6b35','normal_chat':'#00b4ff'};
+  const getBg=c=>{for(const k in cMap){if(c.includes(k))return cMap[k]}return'#8855ff'};
+  const bgs=catL.map(getBg);
+
+  if(catChart) catChart.destroy();
+  catChart=new Chart(document.getElementById('catChart'),{
+    type:'bar',
+    data:{labels:catL,datasets:[{data:catV,backgroundColor:bgs.map(c=>c+'25'),borderColor:bgs,borderWidth:1.5,borderRadius:6}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:'#3d5166',font:{size:9}},grid:{color:'rgba(0,255,136,0.04)'}},
+      y:{ticks:{color:'#3d5166',font:{size:9}},grid:{color:'rgba(0,255,136,0.04)'},beginAtZero:true}
+    }}
+  });
+
+  const sC={HIGH:0,MEDIUM:0,LOW:0};
+  logs.forEach(l=>{if(sC[l.severity]!==undefined)sC[l.severity]++});
+  const sl=Object.keys(sC).filter(k=>sC[k]>0);
+  const sBg={HIGH:'rgba(255,45,85,0.2)',MEDIUM:'rgba(255,179,0,0.2)',LOW:'rgba(0,255,136,0.2)'};
+  const sBd={HIGH:'#ff2d55',MEDIUM:'#ffb300',LOW:'#00ff88'};
+
+  if(sevChart) sevChart.destroy();
+  sevChart=new Chart(document.getElementById('sevChart'),{
+    type:'doughnut',
+    data:{labels:sl,datasets:[{data:sl.map(k=>sC[k]),backgroundColor:sl.map(k=>sBg[k]),borderColor:sl.map(k=>sBd[k]),borderWidth:2,hoverOffset:6}]},
+    options:{responsive:true,cutout:'65%',plugins:{legend:{position:'right',labels:{color:'#7a8fa6',font:{size:9},boxWidth:10,padding:10}}}}
+  });
+}
+
+function renderBlocked(logs){
+  const bl=logs.filter(l=>l.action==='BLOCK');
+  const el=document.getElementById('blockedList');
+  if(!bl.length){el.innerHTML='<div class="all-clear">✓ No blocked interactions — system operating normally</div>';return}
+  el.innerHTML=bl.slice(0,8).map((l,i)=>`
+<div class="b-item">
+  <div class="b-head" onclick="toggleB(${i})">
+    <div class="b-head-left">
+      <div class="b-icon">🚫</div>
+      <div>
+        <div class="b-prompt">${esc((l.user_input||'').slice(0,70))}${(l.user_input||'').length>70?'…':''}</div>
+        <div class="b-meta">${(l.timestamp||'').slice(0,16)} · ${esc(l.model_name||'')} · ${esc(l.categories||'—')}</div>
+      </div>
+    </div>
+    <div class="b-chevron" id="bc${i}">▾</div>
+  </div>
+  <div class="b-body" id="bb${i}">
+    <div class="b-field-lbl">User Prompt</div>
+    <div class="b-field-val">${esc(l.user_input||'')}</div>
+    <div class="b-field-lbl">LLM Response</div>
+    <div class="b-field-val">${esc(l.llm_output||'')}</div>
+    <div class="b-tags">
+      <div><div class="b-tag-lbl">Model</div><div class="b-tag-val">${esc(l.model_name||'—')}</div></div>
+      <div><div class="b-tag-lbl">Category</div><div class="b-tag-val">${esc(l.categories||'—')}</div></div>
+      <div><div class="b-tag-lbl">Severity</div><span class="sev-badge sev-H">${l.severity}</span></div>
+      <div><div class="b-tag-lbl">Confidence</div><div class="b-tag-val">${Math.round((l.confidence||0)*100)}%</div></div>
+      <div><div class="b-tag-lbl">Timestamp</div><div class="b-tag-val" style="color:var(--text2)">${(l.timestamp||'').slice(0,19)}</div></div>
+    </div>
+  </div>
+</div>`).join('');
+}
+
+function toggleB(i){
+  const b=document.getElementById('bb'+i), c=document.getElementById('bc'+i);
+  const open=b.classList.toggle('open');
+  c.style.transform=open?'rotate(180deg)':'rotate(0deg)';
+}
+
+// ── INIT ──
+refreshDashboard();
+setInterval(refreshDashboard,10000);
+document.getElementById('promptInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.ctrlKey) runTest();
+});
+</script>
+</body>
+</html>
