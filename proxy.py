@@ -27,7 +27,7 @@ try:
     from policy_engine import apply_policy
 except ImportError:
     def apply_policy(
-        user_input: str, llm_output: str, risk: dict, llm_model: str
+        model_name: str, user_input: str, llm_output: str, risk: dict
     ) -> dict:
         return {"action": "allow", "final_output": llm_output}
 
@@ -37,17 +37,17 @@ def handle_prompt(user_input: str, provider: str, model: str | None = None) -> d
 
     Returns a dict with: llm_output, risk, action, final_output.
     """
-    resolved_model = model or DEFAULT_MODELS[provider]
+    model_name = model or DEFAULT_MODELS[provider]
 
-    llm = get_llm(provider, resolved_model)
+    llm = get_llm(provider, model_name)
     llm_output = call_llm(llm, SYSTEM_PROMPT, user_input)
 
     risk = classify(user_input, llm_output)
-    decision = apply_policy(user_input, llm_output, risk, resolved_model)
+    decision = apply_policy(model_name, user_input, llm_output, risk)
 
     return {
         "provider": provider,
-        "model": resolved_model,
+        "model": model_name,
         "user_input": user_input,
         "llm_output": llm_output,
         "risk": risk,
