@@ -86,6 +86,7 @@ def get_toxicity_score(text: str) -> float:
     if not toxicity_analyzer:
         return 0.0
     
+    
     try:
         predictions = toxicity_analyzer(text)[0]
         # Check if the label points to toxic behavior rather than clean text
