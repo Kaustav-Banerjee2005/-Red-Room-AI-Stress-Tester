@@ -72,4 +72,53 @@ def get_toxicity_score(text: str) -> float:
         return predictions['score']
         
     return 0.0
-print(get_toxicity_score("I hate you so much, you are completely useless."))
+def safety_classifier(text_input: str) -> dict:
+    """
+    Main gateway function for safety evaluation.
+    Evaluates text and returns the strictly structured risk schema dictionary.
+    """
+    flagged = False
+    categories = []
+    severity = "LOW"
+    confidence = 1.0  # Default high confidence for clean text
+    action = "allow"
+    
+    # 1. Evaluate Jailbreak Threats
+    if detect_jailbreak(text_input):
+        flagged = True
+        categories.append("jailbreak")
+        severity = "HIGH"
+        confidence = 0.95
+        action = "block"
+        
+    # 2. Evaluate PII Data
+    pii_found = detect_pii(text_input)
+    if pii_found:
+        flagged = True
+        categories.extend(pii_found)
+        if severity != "HIGH": 
+            severity = "MEDIUM"
+            confidence = 0.90
+            action = "block"
+
+    # 3. Evaluate Toxicity
+    toxicity_score = get_toxicity_score(text_input)
+    if toxicity_score > 0.6:  # Flag if toxicity confidence crosses 60%
+        flagged = True
+        categories.append("toxicity")
+        if toxicity_score > 0.85:
+            severity = "HIGH"
+            action = "block"
+        elif severity != "HIGH":
+            severity = "MEDIUM"
+            action = "block"
+        confidence = max(confidence, round(toxicity_score, 2)) if confidence != 1.0 else round(toxicity_score, 2)
+
+    return {
+        "flagged": flagged,
+        "categories": categories,
+        "severity": severity,
+        "confidence": confidence,
+        "action": action
+    }
+
