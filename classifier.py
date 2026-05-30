@@ -103,57 +103,69 @@ def get_toxicity_score(text: str) -> float:
 
 def safety_classifier(text_input: str) -> dict:
     """
-    Unified entry point for safety validation.
-    Processes string inputs and guarantees compliance with the risk schema.
+    Unified entry point for safety validation with dynamic scoring logic.
+    Calculates exact risk values dynamically rather than using static hardcoded defaults.
     """
-    # Baseline state defaults (Clean Content assumptions)
     flagged = False
     categories = []
     severity = "LOW"
-    confidence = 1.0  
+    confidence = 0.0  # Will be mathematically calculated
     action = "allow"
     
-    # --- CHECKPOINT A: JAILBREAK THREAT ASSESSMENT ---
-    if detect_jailbreak(text_input):
+    # 1. Evaluate Jailbreak Threat Intensity
+    jailbreak_patterns_matched = 0
+    # Dynamic check: Count how many risk words are crammed into the prompt
+    jailbreak_keywords = ["ignore previous instructions", "pretend you are", "dan", "developer mode", "no restrictions", "system override", "bypass safety", "jailbreak"]
+    for kw in jailbreak_keywords:
+        if re.search(r'\b' + re.escape(kw) + r'\b', text_input, re.IGNORECASE):
+            jailbreak_patterns_matched += 1
+
+    if jailbreak_patterns_matched > 0:
         flagged = True
         categories.append("jailbreak")
         severity = "HIGH"
-        confidence = 0.95
+        # Score scales dynamically: more aggressive spamming = higher certainty score
+        confidence = round(0.70 + (min(jailbreak_patterns_matched, 3) * 0.10), 2)
         action = "block"
         
-    # --- CHECKPOINT B: DATA PRIVACY & PII ASSESSMENT ---
+    # 2. Evaluate Data Privacy & PII Leak Details
     pii_found = detect_pii(text_input)
     if pii_found:
         flagged = True
         categories.extend(pii_found)
-        # Prevent downgrading severity if a Jailbreak was already triggered
         if severity != "HIGH": 
             severity = "MEDIUM"
-            confidence = 0.90
+            # Scale score depending on how many distinct data formats are leaking at once
+            confidence = round(0.60 + (len(pii_found) * 0.15), 2)
             action = "block"
 
-    # --- CHECKPOINT C: MACHINE LEARNING TOXICITY ASSESSMENT ---
+    # 3. Evaluate Machine Learning Toxicity Spectrum
     toxicity_score = get_toxicity_score(text_input)
-    if toxicity_score > 0.6:  # High-confidence threshold trigger
+    if toxicity_score > 0.4:  # Opened threshold to catch mild/medium toxicity levels
         flagged = True
         categories.append("toxicity")
         
-        # Determine strictness tier based on toxicity intensity
+        # Segment severity brackets dynamically according to raw AI prediction
         if toxicity_score > 0.85:
             severity = "HIGH"
             action = "block"
-        elif severity != "HIGH":
-            severity = "MEDIUM"
+        elif toxicity_score > 0.60:
+            if severity != "HIGH": severity = "MEDIUM"
+            action = "block"
+        else:
+            if severity == "LOW": severity = "LOW"  # Flagged but mild warning state
             action = "block"
             
-        # Normalize final confidence score output
-        confidence = max(confidence, round(toxicity_score, 2)) if confidence != 1.0 else round(toxicity_score, 2)
+        # Tie confidence directly to the raw AI mathematical weight
+        confidence = max(confidence, round(toxicity_score, 2))
 
     # --- FINAL DATA SANITIZATION ---
-    # Ensure categories list remains unique
     categories = list(set(categories))
+    
+    # Baseline fallback if the text is entirely clean
+    if not flagged:
+        confidence = 1.0
 
-    # The exact output structure schema requested by the project requirements
     return {
         "flagged": flagged,
         "categories": categories,
